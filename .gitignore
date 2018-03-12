@@ -33,3 +33,6 @@
 
 # Folders
 build
+
+# Build system
+*.user
