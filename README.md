@@ -18,4 +18,6 @@ This is a thin C++ wrapper for gnuplot program, it was made to simplify ploting 
 
   plt.Flush();
 ```
+![output](/example.png)
+
 Please look at ```example.cpp``` file for details.
