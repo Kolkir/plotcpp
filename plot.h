@@ -38,10 +38,10 @@ namespace plotcpp {
 
 enum class PlottingType { Points, Lines };
 
-template <typename I, PlottingType PT>
+template <typename Ix, typename Iy, PlottingType PT>
 struct PlottingItem {
-  using value_type = typename I::value_type;
-  PlottingItem(I startX, I endX, I startY, std::string name)
+  using value_type = typename Ix::value_type;
+  PlottingItem(Ix startX, Ix endX, Iy startY, std::string name)
       : startX(startX), endX(endX), startY(startY), plotType(PT), name(name) {}
   constexpr const char* GetTypeStr() const {
     if constexpr (PT == PlottingType::Lines)
@@ -49,24 +49,24 @@ struct PlottingItem {
     else if constexpr (PT == PlottingType::Points)
       return "points";
     else
-      static_assert(std::is_same<I, void>::value,
+      static_assert(std::is_same<Ix, void>::value,
                     "Unsuported ploting item type");
   }
-  I startX;
-  I endX;
-  I startY;
+  Ix startX;
+  Ix endX;
+  Iy startY;
   PlottingType plotType;
   std::string name;
 };
 
-template <typename I>
-auto Lines(I startX, I endX, I startY, std::string name) {
-  return PlottingItem<I, PlottingType::Lines>(startX, endX, startY, name);
+template <typename Ix, typename Iy>
+auto Lines(Ix startX, Ix endX, Iy startY, std::string name) {
+  return PlottingItem<Ix, Iy, PlottingType::Lines>(startX, endX, startY, name);
 }
 
-template <typename I>
-auto Points(I startX, I endX, I startY, std::string name) {
-  return PlottingItem<I, PlottingType::Points>(startX, endX, startY, name);
+template <typename Ix, typename Iy>
+auto Points(Ix startX, Ix endX, Iy startY, std::string name) {
+  return PlottingItem<Ix, Iy, PlottingType::Points>(startX, endX, startY, name);
 }
 
 class Plot {
@@ -185,13 +185,13 @@ class Plot {
     DrawBinaries(items...);
   }
 
-  template <typename I>
-  void DrawBinary(I startX, I endX, I startY) {
-    typename I::value_type data[2];
+  template <typename Ix, typename Iy>
+  void DrawBinary(Ix startX, Ix endX, Iy startY) {
+    typename Ix::value_type data[2];
     while (startX != endX) {
       data[0] = *startX;
       data[1] = *startY;
-      if (fwrite(&data[0], sizeof(typename I::value_type), 2, pipe_) != 2) {
+      if (fwrite(&data[0], sizeof(typename Ix::value_type), 2, pipe_) != 2) {
         std::cerr << "Failed to write to gnuplot pipe \n";
       }
       ++startX;
