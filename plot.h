@@ -43,6 +43,18 @@ struct PlottingItem {
   using value_type = typename Ix::value_type;
   PlottingItem(Ix startX, Ix endX, Iy startY, std::string name)
       : startX(startX), endX(endX), startY(startY), plotType(PT), name(name) {}
+  PlottingItem(Ix startX,
+               Ix endX,
+               Iy startY,
+               std::string name,
+               std::string options)
+      : startX(startX),
+        endX(endX),
+        startY(startY),
+        plotType(PT),
+        name(name),
+        options(options) {}
+
   constexpr const char* GetTypeStr() const {
     if constexpr (PT == PlottingType::Lines)
       return "lines";
@@ -57,16 +69,27 @@ struct PlottingItem {
   Iy startY;
   PlottingType plotType;
   std::string name;
+  std::string options;
 };
 
 template <typename Ix, typename Iy>
-auto Lines(Ix startX, Ix endX, Iy startY, std::string name) {
-  return PlottingItem<Ix, Iy, PlottingType::Lines>(startX, endX, startY, name);
+auto Lines(Ix startX,
+           Ix endX,
+           Iy startY,
+           std::string name,
+           std::string options = {}) {
+  return PlottingItem<Ix, Iy, PlottingType::Lines>(startX, endX, startY, name,
+                                                   options);
 }
 
 template <typename Ix, typename Iy>
-auto Points(Ix startX, Ix endX, Iy startY, std::string name) {
-  return PlottingItem<Ix, Iy, PlottingType::Points>(startX, endX, startY, name);
+auto Points(Ix startX,
+            Ix endX,
+            Iy startY,
+            std::string name,
+            std::string options = {}) {
+  return PlottingItem<Ix, Iy, PlottingType::Points>(startX, endX, startY, name,
+                                                    options);
 }
 
 class Plot {
@@ -107,6 +130,12 @@ class Plot {
     write(range_str.str(), "");
   }
 
+  typedef std::vector<std::pair<std::string, double>> Tics;
+
+  void SetXTics(const Tics& tics) { SetTics("xtics", tics); }
+
+  void SetYTics(const Tics& tics) { SetTics("ytics", tics); }
+
   void Flush() {
     if (fflush(pipe_) < 0)
       std::cerr << "Failed to flush gnuplot pipe \n";
@@ -121,6 +150,16 @@ class Plot {
   }
 
  private:
+  void SetTics(const std::string& header, const Tics& tics) {
+    std::stringstream xtics_labels;
+    xtics_labels << "set " << header << " (";
+    for (auto & [ label, value ] : tics) {
+      xtics_labels << "\"" << label << "\" " << value << ",";
+    }
+    xtics_labels << ")";
+    write(xtics_labels.str(), "");
+  }
+
   template <typename T>
   void MakePlotParams(std::string& base, const T& item) {
     base += MakePlotParam(item);
@@ -146,7 +185,8 @@ class Plot {
     cmd << item.GetTypeStr();
     cmd << R"( title ")";
     cmd << item.name;
-    cmd << R"(")";
+    cmd << R"(" )";
+    cmd << item.options;
     return cmd.str();
   }
 
