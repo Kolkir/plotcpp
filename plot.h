@@ -55,6 +55,7 @@ struct PlottingItem {
         name(name),
         options(options) {}
 
+#if __cplusplus > 201402L
   constexpr const char* GetTypeStr() const {
     if constexpr (PT == PlottingType::Lines)
       return "lines";
@@ -64,6 +65,22 @@ struct PlottingItem {
       static_assert(std::is_same<Ix, void>::value,
                     "Unsuported ploting item type");
   }
+#else
+  template <PlottingType PTT = PT>
+  constexpr
+      typename std::enable_if<PTT == PlottingType::Lines, const char*>::type
+      GetTypeStr() const {
+    return "lines";
+  }
+
+  template <PlottingType PTT = PT>
+  constexpr
+      typename std::enable_if<PTT == PlottingType::Points, const char*>::type
+      GetTypeStr() const {
+    return "points";
+  }
+#endif
+
   Ix startX;
   Ix endX;
   Iy startY;
@@ -153,7 +170,14 @@ class Plot {
   void SetTics(const std::string& header, const Tics& tics) {
     std::stringstream xtics_labels;
     xtics_labels << "set " << header << " (";
+#if __cplusplus > 201402L
     for (auto & [ label, value ] : tics) {
+#else
+    std::string label;
+    double value;
+    for (auto& tic : tics) {
+      std::tie(label, value) = tic;
+#endif
       xtics_labels << "\"" << label << "\" " << value << ",";
     }
     xtics_labels << ")";
@@ -189,7 +213,7 @@ class Plot {
     cmd << item.options;
     return cmd.str();
   }
-
+#if __cplusplus > 201402L
   template <typename T>
   constexpr const char* GetFormat() const {
     if constexpr (std::is_same<std::int8_t, T>::value)
@@ -216,6 +240,68 @@ class Plot {
       static_assert(std::is_same<T, void>::value, "Unsuported ploting type");
     return nullptr;
   }
+#else
+  template <typename T>
+  constexpr typename std::enable_if<std::is_same<std::int8_t, T>::value,
+                                    const char*>::type
+  GetFormat() const {
+    return "%int8";
+  }
+  template <typename T>
+  constexpr typename std::enable_if<std::is_same<std::uint8_t, T>::value,
+                                    const char*>::type
+  GetFormat() const {
+    return "%uint8";
+  }
+  template <typename T>
+  constexpr typename std::enable_if<std::is_same<std::int16_t, T>::value,
+                                    const char*>::type
+  GetFormat() const {
+    return "%int16";
+  }
+  template <typename T>
+  constexpr typename std::enable_if<std::is_same<std::uint16_t, T>::value,
+                                    const char*>::type
+  GetFormat() const {
+    return "%uint16";
+  }
+  template <typename T>
+  constexpr typename std::enable_if<std::is_same<std::int32_t, T>::value,
+                                    const char*>::type
+  GetFormat() const {
+    return "%int32";
+  }
+  template <typename T>
+  constexpr typename std::enable_if<std::is_same<std::uint32_t, T>::value,
+                                    const char*>::type
+  GetFormat() const {
+    return "%uint32";
+  }
+  template <typename T>
+  constexpr typename std::enable_if<std::is_same<std::int64_t, T>::value,
+                                    const char*>::type
+  GetFormat() const {
+    return "%int64";
+  }
+  template <typename T>
+  constexpr typename std::enable_if<std::is_same<std::uint64_t, T>::value,
+                                    const char*>::type
+  GetFormat() const {
+    return "%uint64";
+  }
+  template <typename T>
+  constexpr typename std::enable_if<std::is_same<float, T>::value,
+                                    const char*>::type
+  GetFormat() const {
+    return "%float";
+  }
+  template <typename T>
+  constexpr typename std::enable_if<std::is_same<double, T>::value,
+                                    const char*>::type
+  GetFormat() const {
+    return "%double";
+  }
+#endif
 
   void DrawBinaries() {}
 
