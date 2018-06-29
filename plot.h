@@ -33,16 +33,20 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <sstream>
 #include <stdexcept>
 #include <type_traits>
+#include <vector>
+#include <tuple>
 
 namespace plotcpp {
 
 enum class PlottingType { Points, Lines };
 
-template <typename Ix, typename Iy, PlottingType PT>
+template <typename Ix, typename Iy, typename Iz, PlottingType PT>
 struct PlottingItem {
   using value_type = typename Ix::value_type;
   PlottingItem(Ix startX, Ix endX, Iy startY, std::string name)
       : startX(startX), endX(endX), startY(startY), plotType(PT), name(name) {}
+  PlottingItem(Ix startX, Ix endX, Iy startY, Iz startZ, std::string name)
+      : startX(startX), endX(endX), startY(startY), startZ(startZ), plotType(PT), name(name) {}
   PlottingItem(Ix startX,
                Ix endX,
                Iy startY,
@@ -51,6 +55,19 @@ struct PlottingItem {
       : startX(startX),
         endX(endX),
         startY(startY),
+        plotType(PT),
+        name(name),
+        options(options) {}
+  PlottingItem(Ix startX,
+               Ix endX,
+               Iy startY,
+               Iy startZ,
+               std::string name,
+               std::string options)
+      : startX(startX),
+        endX(endX),
+        startY(startY),
+        startZ(startZ),
         plotType(PT),
         name(name),
         options(options) {}
@@ -84,6 +101,7 @@ struct PlottingItem {
   Ix startX;
   Ix endX;
   Iy startY;
+  Iz startZ;
   PlottingType plotType;
   std::string name;
   std::string options;
@@ -95,7 +113,18 @@ auto Lines(Ix startX,
            Iy startY,
            std::string name,
            std::string options = {}) {
-  return PlottingItem<Ix, Iy, PlottingType::Lines>(startX, endX, startY, name,
+  return PlottingItem<Ix, Iy, void, PlottingType::Lines>(startX, endX, startY, name,
+                                                   options);
+}
+
+template <typename Ix, typename Iy, typename Iz>
+auto Lines3D(Ix startX,
+           Ix endX,
+           Iy startY,
+           Iz startZ,
+           std::string name,
+           std::string options = {}) {
+  return PlottingItem<Ix, Iy, Iz, PlottingType::Lines>(startX, endX, startY, startZ, name,
                                                    options);
 }
 
@@ -105,7 +134,18 @@ auto Points(Ix startX,
             Iy startY,
             std::string name,
             std::string options = {}) {
-  return PlottingItem<Ix, Iy, PlottingType::Points>(startX, endX, startY, name,
+  return PlottingItem<Ix, Iy, void, PlottingType::Points>(startX, endX, startY, name,
+                                                    options);
+}
+
+template <typename Ix, typename Iy, typename Iz>
+auto Points3D(Ix startX,
+            Ix endX,
+            Iy startY,
+            Iz startZ,
+            std::string name,
+            std::string options = {}) {
+  return PlottingItem<Ix, Iy, Iz, PlottingType::Points>(startX, endX, startY, startZ, name,
                                                     options);
 }
 
@@ -132,6 +172,7 @@ class Plot {
   void SetTitle(const std::string& title) { write("set title", title); }
   void SetXLabel(const std::string& label) { write("set xlabel", label); }
   void SetYLabel(const std::string& label) { write("set ylabel", label); }
+  void SetZLabel(const std::string& label) { write("set zlabel", label); }
   void SetAutoscale() { write("set autoscale", ""); }
   void GnuplotCommand(const std::string& cmd) { write(cmd, ""); }
 
@@ -147,11 +188,19 @@ class Plot {
     write(range_str.str(), "");
   }
 
+  void SetZRange(double min, double max) {
+    std::stringstream range_str;
+    range_str << "set zrange [" << min << ":" << max << "]";
+    write(range_str.str(), "");
+  }
+
   typedef std::vector<std::pair<std::string, double>> Tics;
 
   void SetXTics(const Tics& tics) { SetTics("xtics", tics); }
 
   void SetYTics(const Tics& tics) { SetTics("ytics", tics); }
+
+  void SetZTics(const Tics& tics) { SetTics("ztics", tics); }
 
   void Flush() {
     if (fflush(pipe_) < 0)
@@ -165,6 +214,15 @@ class Plot {
     write(cmd, "");
     DrawBinaries(items...);
   }
+
+  template <typename... Args>
+  void Draw3D(Args... items) {
+    std::string cmd{"splot "};
+    MakePlotParams(cmd, items...);
+    write(cmd, "");
+    DrawBinaries3D(items...);
+  }
+
 
  private:
   void SetTics(const std::string& header, const Tics& tics) {
@@ -304,11 +362,18 @@ class Plot {
 #endif
 
   void DrawBinaries() {}
+  void DrawBinaries3D() {}
 
   template <typename T, typename... Args>
   void DrawBinaries(const T& item, Args... items) {
     DrawBinary(item.startX, item.endX, item.startY);
     DrawBinaries(items...);
+  }
+
+  template <typename T, typename... Args>
+  void DrawBinaries3D(const T& item, Args... items) {
+    DrawBinary3D(item.startX, item.endX, item.startY, item.startZ);
+    DrawBinaries3D(items...);
   }
 
   template <typename Ix, typename Iy>
@@ -322,6 +387,22 @@ class Plot {
       }
       ++startX;
       ++startY;
+    }
+  }
+
+  template <typename Ix, typename Iy, typename Iz>
+  void DrawBinary3D(Ix startX, Ix endX, Iy startY, Iz startZ) {
+    typename Ix::value_type data[3];
+    while (startX != endX) {
+      data[0] = *startX;
+      data[1] = *startY;
+      data[2] = *startZ;
+      if (fwrite(&data[0], sizeof(typename Ix::value_type), 3, pipe_) != 3) {
+        std::cerr << "Failed to write to gnuplot pipe \n";
+      }
+      ++startX;
+      ++startY;
+      ++startZ;
     }
   }
 
