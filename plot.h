@@ -113,7 +113,7 @@ auto Lines(Ix startX,
            Iy startY,
            std::string name,
            std::string options = {}) {
-  return PlottingItem<Ix, Iy, void, PlottingType::Lines>(startX, endX, startY, name,
+  return PlottingItem<Ix, Iy, int, PlottingType::Lines>(startX, endX, startY, name,
                                                    options);
 }
 
@@ -134,7 +134,7 @@ auto Points(Ix startX,
             Iy startY,
             std::string name,
             std::string options = {}) {
-  return PlottingItem<Ix, Iy, void, PlottingType::Points>(startX, endX, startY, name,
+  return PlottingItem<Ix, Iy, int, PlottingType::Points>(startX, endX, startY, name,
                                                     options);
 }
 
