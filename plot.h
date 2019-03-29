@@ -32,22 +32,34 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
+#include <tuple>
 #include <type_traits>
 #include <vector>
-#include <tuple>
+#include <algorithm>
 
 namespace plotcpp {
 
 enum class PlottingType { Points, Lines };
 
-template <typename Ix, typename Iy, typename Iz, PlottingType PT>
+template <typename Ix, typename Iy, typename Iz>
 struct PlottingItem {
   using value_type = typename Ix::value_type;
-  PlottingItem(Ix startX, Ix endX, Iy startY, std::string name)
-      : startX(startX), endX(endX), startY(startY), plotType(PT), name(name) {}
-  PlottingItem(Ix startX, Ix endX, Iy startY, Iz startZ, std::string name)
-      : startX(startX), endX(endX), startY(startY), startZ(startZ), plotType(PT), name(name) {}
-  PlottingItem(Ix startX,
+  PlottingItem(PlottingType pt, Ix startX, Ix endX, Iy startY, std::string name)
+      : startX(startX), endX(endX), startY(startY), plotType(pt), name(name) {}
+  PlottingItem(PlottingType pt,
+               Ix startX,
+               Ix endX,
+               Iy startY,
+               Iz startZ,
+               std::string name)
+      : startX(startX),
+        endX(endX),
+        startY(startY),
+        startZ(startZ),
+        plotType(pt),
+        name(name) {}
+  PlottingItem(PlottingType pt,
+               Ix startX,
                Ix endX,
                Iy startY,
                std::string name,
@@ -55,10 +67,11 @@ struct PlottingItem {
       : startX(startX),
         endX(endX),
         startY(startY),
-        plotType(PT),
+        plotType(pt),
         name(name),
         options(options) {}
-  PlottingItem(Ix startX,
+  PlottingItem(PlottingType pt,
+               Ix startX,
                Ix endX,
                Iy startY,
                Iy startZ,
@@ -68,36 +81,17 @@ struct PlottingItem {
         endX(endX),
         startY(startY),
         startZ(startZ),
-        plotType(PT),
+        plotType(pt),
         name(name),
         options(options) {}
 
-#if __cplusplus > 201402L
-  constexpr const char* GetTypeStr() const {
-    if constexpr (PT == PlottingType::Lines)
-      return "lines";
-    else if constexpr (PT == PlottingType::Points)
+  const char* GetTypeStr() const {
+    if (plotType == PlottingType::Points)
       return "points";
-    else
-      static_assert(std::is_same<Ix, void>::value,
-                    "Unsuported ploting item type");
+    if (plotType == PlottingType::Lines)
+      return "lines";
+    return nullptr;
   }
-#else
-  template <PlottingType PTT = PT>
-  constexpr
-      typename std::enable_if<PTT == PlottingType::Lines, const char*>::type
-      GetTypeStr() const {
-    return "lines";
-  }
-
-  template <PlottingType PTT = PT>
-  constexpr
-      typename std::enable_if<PTT == PlottingType::Points, const char*>::type
-      GetTypeStr() const {
-    return "points";
-  }
-#endif
-
   Ix startX;
   Ix endX;
   Iy startY;
@@ -113,19 +107,19 @@ auto Lines(Ix startX,
            Iy startY,
            std::string name,
            std::string options = {}) {
-  return PlottingItem<Ix, Iy, int, PlottingType::Lines>(startX, endX, startY, name,
-                                                   options);
+  return PlottingItem<Ix, Iy, int>(PlottingType::Lines, startX, endX, startY,
+                                                        name, options);
 }
 
 template <typename Ix, typename Iy, typename Iz>
 auto Lines3D(Ix startX,
-           Ix endX,
-           Iy startY,
-           Iz startZ,
-           std::string name,
-           std::string options = {}) {
-  return PlottingItem<Ix, Iy, Iz, PlottingType::Lines>(startX, endX, startY, startZ, name,
-                                                   options);
+             Ix endX,
+             Iy startY,
+             Iz startZ,
+             std::string name,
+             std::string options = {}) {
+  return PlottingItem<Ix, Iy, Iz>(PlottingType::Lines, startX, endX, startY,
+                                                       startZ, name, options);
 }
 
 template <typename Ix, typename Iy>
@@ -134,19 +128,19 @@ auto Points(Ix startX,
             Iy startY,
             std::string name,
             std::string options = {}) {
-  return PlottingItem<Ix, Iy, int, PlottingType::Points>(startX, endX, startY, name,
-                                                    options);
+  return PlottingItem<Ix, Iy, int>(PlottingType::Points, startX, endX, startY,
+                                                         name, options);
 }
 
 template <typename Ix, typename Iy, typename Iz>
 auto Points3D(Ix startX,
-            Ix endX,
-            Iy startY,
-            Iz startZ,
-            std::string name,
-            std::string options = {}) {
-  return PlottingItem<Ix, Iy, Iz, PlottingType::Points>(startX, endX, startY, startZ, name,
-                                                    options);
+              Ix endX,
+              Iy startY,
+              Iz startZ,
+              std::string name,
+              std::string options = {}) {
+  return PlottingItem<Ix, Iy, Iz>(PlottingType::Points, startX, endX, startY,
+                                                        startZ, name, options);
 }
 
 class Plot {
@@ -207,6 +201,65 @@ class Plot {
       std::cerr << "Failed to flush gnuplot pipe \n";
   }
 
+  template <typename Tx, typename Ty = Tx, typename Tz = Tx>
+  struct DrawState {
+    std::string cmd;
+    std::vector<Tx> startX;
+    std::vector<Tx> endX;
+    std::vector<Ty> startY;
+    std::vector<Tz> startZ;
+  };
+
+  template <typename Tx, typename Ty = Tx>
+  auto StartDraw2D() {
+    DrawState<Tx, Ty, int> state;
+    state.cmd = "plot ";
+    return state;
+  }
+
+  template <typename Tx, typename Ty = Tx, typename Tz= Tx>
+  auto StartDraw3D() {
+    DrawState<Tx, Ty, Tz> state;
+    state.cmd = "splot ";
+    return state;
+  }
+
+  template <typename S, typename I>
+  void AddDrawing(S& state, I item) {
+    state.cmd += MakePlotParam(item);
+    state.cmd += ",";
+    state.startX.push_back(item.startX);
+    state.endX.push_back(item.endX);
+    state.startY.push_back(item.startY);
+    state.startZ.push_back(item.startZ);
+  }
+
+  template <typename S>
+  void EndDraw2D(S state) {
+    write(state.cmd, "");
+    auto iex = state.endX.begin();
+    auto iy = state.startY.begin();
+    std::for_each(state.startX.begin(), state.startX.end(),[&](auto ix){
+        DrawBinary(ix, *iex, *iy);
+        ++iex;
+        ++iy;
+    });
+  }
+
+  template <typename S>
+  void EndDraw3D(S state) {
+    write(state.cmd, "");
+    auto iex = state.endX.begin();
+    auto iy = state.startY.begin();
+    auto iz = state.startZ.begin();
+    std::for_each(state.startX.begin(), state.startX.end(),[&](auto ix){
+        DrawBinary(ix, *iex, *iy, *iz);
+        ++iex;
+        ++iy;
+        ++iz;
+    });
+  }
+
   template <typename... Args>
   void Draw2D(Args... items) {
     std::string cmd{"plot "};
@@ -223,13 +276,12 @@ class Plot {
     DrawBinaries3D(items...);
   }
 
-
  private:
   void SetTics(const std::string& header, const Tics& tics) {
     std::stringstream xtics_labels;
     xtics_labels << "set " << header << " (";
 #if __cplusplus > 201402L
-    for (auto & [ label, value ] : tics) {
+    for (auto& [label, value] : tics) {
 #else
     std::string label;
     double value;
@@ -348,15 +400,15 @@ class Plot {
     return "%uint64";
   }
   template <typename T>
-  constexpr typename std::enable_if<std::is_same<float, T>::value,
-                                    const char*>::type
-  GetFormat() const {
+  constexpr
+      typename std::enable_if<std::is_same<float, T>::value, const char*>::type
+      GetFormat() const {
     return "%float";
   }
   template <typename T>
-  constexpr typename std::enable_if<std::is_same<double, T>::value,
-                                    const char*>::type
-  GetFormat() const {
+  constexpr
+      typename std::enable_if<std::is_same<double, T>::value, const char*>::type
+      GetFormat() const {
     return "%double";
   }
 #endif
