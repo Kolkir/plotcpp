@@ -253,7 +253,7 @@ class Plot {
     auto iy = state.startY.begin();
     auto iz = state.startZ.begin();
     std::for_each(state.startX.begin(), state.startX.end(),[&](auto ix){
-        DrawBinary(ix, *iex, *iy, *iz);
+        DrawBinary3D(ix, *iex, *iy, *iz);
         ++iex;
         ++iy;
         ++iz;
